@@ -251,11 +251,11 @@ function apiGet(params){
   return fetch(url).then(r=>r.json());
 }
 function apiPost(body){
-  return fetch(API_URL, {
-    method:'POST',
-    headers:{'Content-Type':'text/plain'}, // GASのCORS対策
-    body: JSON.stringify(body)
-  }).then(r=>r.json());
+  const url = API_URL + '?' + new URLSearchParams({
+    action: body.action,
+    payload: JSON.stringify(body)
+  }).toString();
+  return fetch(url).then(r=>r.json());
 }
 
 // ---- 初期化:名前一覧 ----
@@ -389,7 +389,7 @@ function sendMessage(){
     action:'chat',
     stage: state.stage,
     userMessage: text,
-    history: state.history.slice(0, -1) // 直近の発言を除く(重複を避ける)
+    history: state.history.slice(0, -1).slice(-8) // 直近8件のみ(URL長対策)
   }).then(res=>{
     if(!res.ok){ addBubble('ai','(エラー: ' + (res.error || '不明') + ')'); return; }
     addBubble('ai', res.reply);
