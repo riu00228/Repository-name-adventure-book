@@ -299,6 +299,16 @@ function showScreen(id){
 
 // ---- API呼び出し ----
 let jsonpCounter = 0;
+
+// 日本語を含むJSONをBase64(URL安全版)に変換。URLエンコードより大幅に短くなる。
+function toBase64Url(obj){
+  const json = JSON.stringify(obj);
+  const utf8Bytes = new TextEncoder().encode(json);
+  let binary = '';
+  utf8Bytes.forEach(b => binary += String.fromCharCode(b));
+  return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
+}
+
 function jsonpRequest(params){
   return new Promise((resolve, reject)=>{
     const cbName = 'jsonp_cb_' + (jsonpCounter++);
@@ -315,7 +325,7 @@ function apiGet(params){
   return jsonpRequest(params);
 }
 function apiPost(body){
-  return jsonpRequest({ action: body.action, payload: JSON.stringify(body) });
+  return jsonpRequest({ action: body.action, payloadB64: toBase64Url(body) });
 }
 
 // ---- 初期化:名前一覧 ----
@@ -491,11 +501,11 @@ function showStatusToast(prevStatus, newStatus){
   setTimeout(()=> toast.textContent='', 3000);
 }
 
-// 送信する履歴を短く整える(URL長がブラウザの上限を超えてJSONP読み込みが失敗するのを防ぐ)
+// 送信する履歴を短く整える(件数と文字数を抑えて安全マージンを確保)
 function trimHistoryForSend(history){
-  return history.slice(-6).map(h=>({
+  return history.slice(-8).map(h=>({
     role: h.role,
-    text: h.text.length > 120 ? h.text.slice(0,120) + '…' : h.text
+    text: h.text.length > 200 ? h.text.slice(0,200) + '…' : h.text
   }));
 }
 
