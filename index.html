@@ -344,35 +344,46 @@ function selectMember(name){
     if(statusRes.ok) state.status = statusRes.status;
 
     const stage = saveRes.ok ? Number(saveRes.save.stage) || 0 : 0;
+    const summary = saveRes.ok ? (saveRes.save.summary || '') : '';
     if(saveRes.ok && stage > 0){
       document.getElementById('saveInfoText').textContent =
         name + " の冒険の書を開いた。前回はステージ " + stage + " まで進んでいる。";
       showScreen('screenSave');
       document.getElementById('continueBtn').onclick = ()=>{
         state.stage = stage;
-        startChat();
+        startChat(summary);
       };
       document.getElementById('restartBtn').onclick = ()=>{
         state.stage = 1;
-        startChat();
+        startChat('');
       };
     } else {
       state.stage = 1;
-      startChat();
+      startChat('');
     }
   });
 }
 
 // ---- チャット開始 ----
-function startChat(){
+function startChat(previousSummary){
   state.history = [];
   document.getElementById('chatLog').innerHTML = '';
   drawRadar();
   showScreen('screenChat');
 
-  const intro = state.stage === 1
-    ? "ようこそ、" + state.name + "さん。最近、仕事かプライベートで気になっていることはありますか。"
-    : "続きから始めましょう、" + state.name + "さん。今日はどんなことを話したいですか。";
+  if(previousSummary){
+    // AIへの裏コンテキストとして要約を渡す(画面には出さない)
+    state.history.push({role:'user', text:'(これまでの対話の要約:' + previousSummary + ')'});
+    state.history.push({role:'model', text:'(要約を踏まえて続きを話します)'});
+
+    const intro = "おかえりなさい、" + state.name + "さん。前回、" + previousSummary.slice(0,40) +
+      (previousSummary.length>40 ? '…' : '') + " というお話をされていましたね。続きを聞かせてもらえますか。";
+    addBubble('ai', intro);
+    state.history.push({role:'model', text:intro});
+    return;
+  }
+
+  const intro = "ようこそ、" + state.name + "さん。最近、仕事かプライベートで気になっていることはありますか。";
   addBubble('ai', intro);
   state.history.push({role:'model', text:intro});
 }
