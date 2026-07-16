@@ -516,7 +516,8 @@ function sendTurn(text, showUserBubble){
     state.exchangeCount++;
 
     if(state.stage === 2){
-      const convoText = "ユーザー: " + text + "\nAI: " + res.reply;
+      const trim = (s)=> s.length > 150 ? s.slice(0,150) + '…' : s;
+      const convoText = "ユーザー: " + trim(text) + "\nAI: " + trim(res.reply);
       apiPost({action:'extractAxis', conversationText: convoText}).then(axisRes=>{
         if(axisRes.ok){
           const prevStatus = {...state.status};
