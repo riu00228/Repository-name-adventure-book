@@ -309,13 +309,23 @@ function toBase64Url(obj){
   return btoa(binary).replace(/\+/g,'-').replace(/\//g,'_').replace(/=+$/,'');
 }
 
-function jsonpRequest(params){
+function jsonpRequest(params, isRetry){
   return new Promise((resolve, reject)=>{
     const cbName = 'jsonp_cb_' + (jsonpCounter++);
     const script = document.createElement('script');
-    const cleanup = ()=>{ delete window[cbName]; script.remove(); };
-    window[cbName] = (data)=>{ cleanup(); resolve(data); };
-    script.onerror = ()=>{ cleanup(); reject(new Error('JSONP読み込み失敗')); };
+    let done = false;
+    const cleanup = ()=>{ delete window[cbName]; script.remove(); clearTimeout(timer); };
+    window[cbName] = (data)=>{ if(done) return; done=true; cleanup(); resolve(data); };
+    script.onerror = ()=>{ if(done) return; done=true; cleanup(); onFail(); };
+    const timer = setTimeout(()=>{ if(done) return; done=true; cleanup(); onFail(); }, 20000);
+    function onFail(){
+      if(!isRetry){
+        // 1回だけ自動で再試行(一時的な詰まり対策)
+        jsonpRequest(params, true).then(resolve).catch(reject);
+      } else {
+        reject(new Error('通信に失敗しました(時間切れ、または読み込みエラー)'));
+      }
+    }
     const url = API_URL + '?' + new URLSearchParams({...params, callback: cbName}).toString();
     script.src = url;
     document.body.appendChild(script);
