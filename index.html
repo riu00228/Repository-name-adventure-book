@@ -167,6 +167,51 @@
     margin-top:6px;
     cursor:pointer;
   }
+  .quest-select-row{
+    display:flex;
+    gap:8px;
+    margin:8px 0 4px;
+  }
+  .quest-btn{
+    flex:1;
+    font-size:12px;
+    font-weight:700;
+    text-align:center;
+    padding:10px 6px;
+    border-radius:6px;
+    cursor:pointer;
+  }
+  .quest-btn.quest-main{
+    background:var(--border-gold);
+    color:#1a1a1a;
+    border:2px solid #8a6a1a;
+  }
+  .quest-btn.quest-side{
+    background:transparent;
+    color:var(--text-dim);
+    border:2px solid var(--border-gold-dim);
+  }
+  .quest-btn.quest-usp{
+    background:var(--accent-teal);
+    color:#0a1a1a;
+    border:2px solid #1f6e64;
+  }
+  .quest-badge{
+    align-self:center;
+    font-size:11px;
+    color:var(--text-dim);
+    background:var(--bg-deep);
+    border:1px dashed var(--border-gold-dim);
+    border-radius:12px;
+    padding:4px 12px;
+    margin:2px 0;
+  }
+  .quest-progress{
+    font-size:11px;
+    color:var(--accent-teal);
+    text-align:center;
+    margin-top:2px;
+  }
   .save-toast{
     text-align:center;
     font-size:12px;
@@ -208,15 +253,22 @@
     <div class="pixel-panel" id="radarWrap">
       <svg id="radarSvg" viewBox="0 0 260 240"></svg>
       <div class="status-caption" id="statusCaption">現在のステータス</div>
+      <div class="quest-progress" id="questProgress"></div>
     </div>
 
     <div class="pixel-panel" id="chatScreen" style="display:flex;flex-direction:column;">
       <div id="chatLog"></div>
+      <div class="quest-select-row" id="questSelectRow">
+        <div class="quest-btn quest-main" id="questMainBtn">▶ メインストーリーを進める</div>
+        <div class="quest-btn quest-side" id="questSideBtn">☆ 寄り道する(気になってること)</div>
+      </div>
+      <div class="quest-select-row">
+        <div class="quest-btn quest-usp" id="questUspBtn" style="flex:1;">💡 自分のビジネス(USP)を整理する</div>
+      </div>
       <div id="chatInputRow">
         <input id="chatInput" type="text" placeholder="思ったことを自由に…">
         <button id="sendBtn">送る</button>
       </div>
-      <div class="stage-toggle" id="stageToggle" style="display:none;">そろそろ話を整理する(ステージ2へ)</div>
       <div class="save-toast" id="saveToast"></div>
       <div class="footer-actions">
         <span id="saveBtn">ここでセーブする</span>
@@ -323,8 +375,6 @@ function startChat(){
     : "続きから始めましょう、" + state.name + "さん。今日はどんなことを話したいですか。";
   addBubble('ai', intro);
   state.history.push({role:'model', text:intro});
-
-  updateStageToggleVisibility();
 }
 
 // ---- レーダーチャート描画 ----
@@ -368,6 +418,12 @@ function drawRadar(){
   svg.innerHTML = svgParts;
   document.getElementById('statusCaption').textContent =
     AXES.map(a=>a+':'+state.status[a]).join(' / ');
+
+  const total = AXES.reduce((sum,a)=> sum + state.status[a], 0);
+  const progressEl = document.getElementById('questProgress');
+  progressEl.textContent = total >= 25
+    ? 'メインクエスト進捗:25/25 MAX STATS ACHIEVED!'
+    : 'メインクエスト進捗:' + total + '/25';
 }
 
 // ---- チャット送受信 ----
@@ -380,24 +436,60 @@ function addBubble(role, text){
   log.scrollTop = log.scrollHeight;
 }
 
-document.getElementById('sendBtn').onclick = sendMessage;
-document.getElementById('chatInput').addEventListener('keydown', e=>{
-  if(e.key === 'Enter') sendMessage();
-});
-
-function sendMessage(){
+document.getElementById('sendBtn').onclick = ()=>{
   const input = document.getElementById('chatInput');
   const text = input.value.trim();
   if(!text) return;
   input.value = '';
-  addBubble('user', text);
+  sendTurn(text, true);
+};
+document.getElementById('chatInput').addEventListener('keydown', e=>{
+  if(e.key === 'Enter') document.getElementById('sendBtn').click();
+});
+
+document.getElementById('questMainBtn').onclick = ()=>{
+  state.stage = 2;
+  addQuestBadge('▶ メインストーリーを進める');
+  sendTurn('(メインストーリーを進めたい)', false);
+};
+document.getElementById('questSideBtn').onclick = ()=>{
+  state.stage = 1;
+  addQuestBadge('☆ 寄り道:今気になっていることを話したい');
+  sendTurn('(今気になっていることを話したい)', false);
+};
+document.getElementById('questUspBtn').onclick = ()=>{
+  state.stage = 3;
+  addQuestBadge('💡 自分のビジネス(USP)を整理する');
+  sendTurn('(USPを整理したい)', false);
+};
+
+function addQuestBadge(label){
+  const log = document.getElementById('chatLog');
+  const b = document.createElement('div');
+  b.className = 'quest-badge';
+  b.textContent = label;
+  log.appendChild(b);
+  log.scrollTop = log.scrollHeight;
+}
+
+function showStatusToast(prevStatus, newStatus){
+  const gains = AXES.filter(a => newStatus[a] > (prevStatus[a]||0));
+  const toast = document.getElementById('saveToast');
+  if(gains.length === 0) return;
+  toast.textContent = gains.map(a=>a+'が上がった!').join(' ');
+  setTimeout(()=> toast.textContent='', 3000);
+}
+
+// text: 送信するメッセージ本文。showUserBubble: 通常の吹き出しとして表示するか(クエストボタン経由の時はfalse)
+function sendTurn(text, showUserBubble){
+  if(showUserBubble) addBubble('user', text);
   state.history.push({role:'user', text});
 
   apiPost({
     action:'chat',
     stage: state.stage,
     userMessage: text,
-    history: state.history.slice(0, -1).slice(-8) // 直近8件のみ(URL長対策)
+    history: state.history.slice(0, -1).slice(-8)
   }).then(res=>{
     if(!res.ok){ addBubble('ai','(エラー: ' + (res.error || '不明') + ')'); return; }
     addBubble('ai', res.reply);
@@ -408,10 +500,12 @@ function sendMessage(){
       const convoText = "ユーザー: " + text + "\nAI: " + res.reply;
       apiPost({action:'extractAxis', conversationText: convoText}).then(axisRes=>{
         if(axisRes.ok){
+          const prevStatus = {...state.status};
           apiPost({action:'saveStatus', name: state.name, deltas: axisRes.deltas}).then(statusRes=>{
             if(statusRes.ok){
               AXES.forEach((a,i)=> state.status[a] = statusRes.status[i]);
               drawRadar();
+              showStatusToast(prevStatus, state.status);
             }
           }).catch(err=> addBubble('ai','(ステータス保存エラー: '+err.message+')'));
         }
@@ -423,24 +517,10 @@ function sendMessage(){
       summary: state.history.slice(-4).map(h=>h.text).join(' / '),
       autoSave: true
     }).catch(()=>{});
-
-    updateStageToggleVisibility();
   }).catch(err=>{
     addBubble('ai', '(通信失敗: ' + err.message + ')');
   });
 }
-
-function updateStageToggleVisibility(){
-  const toggle = document.getElementById('stageToggle');
-  toggle.style.display = (state.stage === 1 && state.exchangeCount >= 2) ? 'block' : 'none';
-}
-
-document.getElementById('stageToggle').onclick = ()=>{
-  state.stage = 2;
-  document.getElementById('stageToggle').style.display = 'none';
-  addBubble('ai', 'ここまでの話を聞かせてくれてありがとうございます。もう少しだけ、あなたのことを深く聞かせてください。');
-  state.history.push({role:'model', text:'ここまでの話を聞かせてくれてありがとうございます。もう少しだけ、あなたのことを深く聞かせてください。'});
-};
 
 document.getElementById('saveBtn').onclick = ()=>{
   apiPost({
