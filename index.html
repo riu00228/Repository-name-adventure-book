@@ -480,6 +480,14 @@ function showStatusToast(prevStatus, newStatus){
   setTimeout(()=> toast.textContent='', 3000);
 }
 
+// 送信する履歴を短く整える(URL長がブラウザの上限を超えてJSONP読み込みが失敗するのを防ぐ)
+function trimHistoryForSend(history){
+  return history.slice(-6).map(h=>({
+    role: h.role,
+    text: h.text.length > 120 ? h.text.slice(0,120) + '…' : h.text
+  }));
+}
+
 // text: 送信するメッセージ本文。showUserBubble: 通常の吹き出しとして表示するか(クエストボタン経由の時はfalse)
 function sendTurn(text, showUserBubble){
   if(showUserBubble) addBubble('user', text);
@@ -489,7 +497,7 @@ function sendTurn(text, showUserBubble){
     action:'chat',
     stage: state.stage,
     userMessage: text,
-    history: state.history.slice(0, -1).slice(-8)
+    history: trimHistoryForSend(state.history.slice(0, -1))
   }).then(res=>{
     if(!res.ok){ addBubble('ai','(エラー: ' + (res.error || '不明') + ')'); return; }
     addBubble('ai', res.reply);
@@ -514,7 +522,7 @@ function sendTurn(text, showUserBubble){
 
     apiPost({
       action:'saveState', name: state.name, stage: state.stage,
-      summary: state.history.slice(-4).map(h=>h.text).join(' / '),
+      summary: trimHistoryForSend(state.history.slice(-4)).map(h=>h.text).join(' / '),
       autoSave: true
     }).catch(()=>{});
   }).catch(err=>{
@@ -525,7 +533,7 @@ function sendTurn(text, showUserBubble){
 document.getElementById('saveBtn').onclick = ()=>{
   apiPost({
     action:'saveState', name: state.name, stage: state.stage,
-    summary: state.history.slice(-4).map(h=>h.text).join(' / '),
+    summary: trimHistoryForSend(state.history.slice(-4)).map(h=>h.text).join(' / '),
     autoSave: false
   }).then(res=>{
     const toast = document.getElementById('saveToast');
